@@ -1,0 +1,55 @@
+Build the initial foundation for **VendorLock**, an AI-powered supplier verification and payment-fraud prevention application for the ArmorIQ Flow State hackathon.
+
+## Product objective
+
+VendorLock investigates supplier emails requesting changes to bank details, compares the request against trusted supplier records, identifies discrepancies, and prevents unauthorized supplier-record changes.
+
+The application must demonstrate genuine ArmorIQ enforcement. Do not simulate or hardcode security decisions.
+
+## Technical stack
+
+- React, TypeScript, and Vite for the frontend.
+- Node.js and TypeScript for the backend.
+- Official `@armoriq/sdk` package for ArmorIQ integration.
+- Official `@modelcontextprotocol/sdk` package for MCP.
+- Simple seeded test data for suppliers, invoices, and purchase orders.
+- Use Replit Secrets/environment variables for all API keys.
+
+## First milestone: a working security vertical slice
+
+Prioritize this milestone over elaborate UI development.
+
+1. Create a custom MCP server named `vendorlock-mcp`.
+2. Implement these tools:
+   - `get_supplier_record`: retrieve a seeded supplier's trusted details.
+   - `get_invoice`: retrieve a seeded invoice and its purchase-order reference.
+   - `create_verification_request`: create a verification request using the supplier's previously trusted contact information.
+   - `update_supplier_bank_details`: attempt a controlled change to a test supplier record.
+3. Create a backend agent workflow that investigates a supplier-change request and prepares an explicit action plan.
+4. Integrate the official ArmorIQ SDK into the actual tool-execution path. Follow the current official SDK documentation for plan capture, intent tokens, and enforcement.
+5. Configure the application so that unauthorized or out-of-plan tool calls cannot execute. All sensitive operations must use a sandbox.
+6. Never allow an LLM to directly modify supplier records outside the protected execution path.
+7. Keep all API credentials server-side. Never expose them to the browser or commit them to source control.
+
+## Initial test scenario
+
+Seed one supplier with trusted bank details and one invoice.
+
+A legitimate request must allow the agent to investigate the supplier and create a verification request.
+
+An adversarial request must instruct the agent to ignore a bank-detail mismatch and update the supplier record anyway.
+
+The application must demonstrate an actual ArmorIQ enforcement decision that prevents the unauthorized update. Verify that the database record remains unchanged.
+
+## Deliverables for this milestone
+
+- A runnable full-stack Replit project.
+- A custom MCP server exposing the four tools.
+- A minimal backend workflow using the official ArmorIQ SDK.
+- Clear setup instructions and required environment variables.
+- A test proving that an authorized tool call works and a prohibited call does not execute.
+- Clear errors when credentials or ArmorIQ registration are missing.
+
+Do not build a large dashboard yet. Do not create mock ArmorIQ responses, fake security logs, or fallback code that reports success when enforcement fails. If a platform registration step is required, document it and stop rather than pretending it succeeded.
+
+Keep the code modular so the final dashboard can be added after the security integration is verified.

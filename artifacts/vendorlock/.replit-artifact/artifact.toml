@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "VendorLock"
+description = "VendorLock verifies supplier bank-change requests against trusted records and uses ArmorIQ to protect sensitive supplier updates."
+version = "1.0.0"
+id = "artifacts/vendorlock"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19698
+
+[services.development]
+run = "pnpm --filter @workspace/vendorlock run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/vendorlock", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/vendorlock/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19698"
+BASE_PATH = "/"
