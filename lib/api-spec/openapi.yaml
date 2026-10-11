@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: vendorlock
+    description: VendorLock supplier verification and protected action workflow
 paths:
   /healthz:
     get:
@@ -24,6 +26,104 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /vendorlock/status:
+    get:
+      operationId: getVendorLockStatus
+      tags: [vendorlock]
+      summary: Report VendorLock setup readiness
+      responses:
+        "200":
+          description: Current server-side integration readiness
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorLockStatus"
+  /vendorlock/suppliers:
+    get:
+      operationId: listSuppliers
+      tags: [vendorlock]
+      summary: List seeded suppliers
+      responses:
+        "200":
+          description: Trusted supplier records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Supplier"
+  /vendorlock/invoices:
+    get:
+      operationId: listInvoices
+      tags: [vendorlock]
+      summary: List seeded invoices and purchase-order references
+      responses:
+        "200":
+          description: Seeded invoices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Invoice"
+  /vendorlock/verification-requests:
+    get:
+      operationId: listVerificationRequests
+      tags: [vendorlock]
+      summary: List verification requests created through the protected workflow
+      responses:
+        "200":
+          description: Verification request records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VerificationRequest"
+  /vendorlock/activity:
+    get:
+      operationId: listInvestigations
+      tags: [vendorlock]
+      summary: List persisted supplier investigations
+      responses:
+        "200":
+          description: Persisted investigation summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InvestigationSummary"
+  /vendorlock/investigations:
+    post:
+      operationId: createInvestigation
+      tags: [vendorlock]
+      summary: Run a supplier-change investigation through ArmorIQ-protected MCP tools
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvestigationInput"
+      responses:
+        "201":
+          description: Investigation result with actual tool and enforcement outcomes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvestigationResult"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "503":
+          description: Required ArmorIQ registration or server credential is missing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +133,188 @@ components:
           type: string
       required:
         - status
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+      required: [error, code]
+    VendorLockStatus:
+      type: object
+      properties:
+        openAiConfigured:
+          type: boolean
+        armorIqApiKeyConfigured:
+          type: boolean
+        mcpBearerConfigured:
+          type: boolean
+        mcpId:
+          type: string
+        registration:
+          type: string
+          enum: [required, not_verified]
+        message:
+          type: string
+      required:
+        - openAiConfigured
+        - armorIqApiKeyConfigured
+        - mcpBearerConfigured
+        - mcpId
+        - registration
+        - message
+    Supplier:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        trustedContactName:
+          type: string
+        trustedContactEmail:
+          type: string
+        bankName:
+          type: string
+        bankLast4:
+          type: string
+        status:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name, trustedContactName, trustedContactEmail, bankName, bankLast4, status, updatedAt]
+    Invoice:
+      type: object
+      properties:
+        id:
+          type: string
+        supplierId:
+          type: string
+        invoiceNumber:
+          type: string
+        amount:
+          type: number
+        currency:
+          type: string
+        dueDate:
+          type: string
+          format: date
+        purchaseOrderId:
+          type: string
+        status:
+          type: string
+      required: [id, supplierId, invoiceNumber, amount, currency, dueDate, purchaseOrderId, status]
+    VerificationRequest:
+      type: object
+      properties:
+        id:
+          type: string
+        supplierId:
+          type: string
+        invoiceId:
+          type: string
+        trustedContactEmail:
+          type: string
+        reason:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, supplierId, invoiceId, trustedContactEmail, reason, status, createdAt]
+    InvestigationInput:
+      type: object
+      properties:
+        scenario:
+          type: string
+          enum: [legitimate, adversarial]
+        requestText:
+          type: string
+          minLength: 10
+          maxLength: 4000
+        supplierId:
+          type: string
+        invoiceId:
+          type: string
+      required: [scenario, requestText, supplierId, invoiceId]
+    PlanStep:
+      type: object
+      properties:
+        action:
+          type: string
+        description:
+          type: string
+      required: [action, description]
+    ToolExecution:
+      type: object
+      properties:
+        action:
+          type: string
+        status:
+          type: string
+          enum: [allowed, blocked, not_attempted, setup_required, error]
+        message:
+          type: string
+        enforcementSource:
+          type: ["string", "null"]
+      required: [action, status, message, enforcementSource]
+    InvestigationSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        scenario:
+          type: string
+          enum: [legitimate, adversarial]
+        summary:
+          type: string
+        riskLevel:
+          type: string
+          enum: [low, medium, high]
+        enforcement:
+          type: string
+          enum: [allowed, blocked, not_verified, setup_required, error]
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, scenario, summary, riskLevel, enforcement, createdAt]
+    InvestigationResult:
+      type: object
+      properties:
+        id:
+          type: string
+        scenario:
+          type: string
+          enum: [legitimate, adversarial]
+        summary:
+          type: string
+        riskLevel:
+          type: string
+          enum: [low, medium, high]
+        mismatchFound:
+          type: boolean
+        actionPlan:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlanStep"
+        toolExecutions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ToolExecution"
+        enforcement:
+          type: string
+          enum: [allowed, blocked, not_verified, setup_required, error]
+        decisionReason:
+          type: ["string", "null"]
+        supplierBankLast4Before:
+          type: string
+        supplierBankLast4After:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, scenario, summary, riskLevel, mismatchFound, actionPlan, toolExecutions, enforcement, decisionReason, supplierBankLast4Before, supplierBankLast4After, createdAt]
 
