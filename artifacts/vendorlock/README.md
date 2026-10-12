@@ -8,7 +8,7 @@ Set these in Replit Secrets; never paste their values into chat or source files:
 
 - `ARMORIQ_API_KEY`
 - `OPENAI_API_KEY`
-- `VENDORLOCK_MCP_BEARER_TOKEN` — a separate strong random value used to protect the MCP HTTP endpoint. The secure form for this value was dismissed, so the endpoint currently returns `503` and does not serve tools.
+- `VENDORLOCK_MCP_BEARER_TOKEN` — a separate strong random value used to protect the MCP HTTP endpoint. The public endpoint currently returns `503` because this secret is not configured in the workspace or production.
 
 Use the same `VENDORLOCK_MCP_BEARER_TOKEN` value in ArmorIQ's MCP server authentication settings. Optional settings are `ARMORIQ_MCP_ID` (default `vendorlock-mcp`), `ARMORIQ_USER_ID`, `ARMORIQ_AGENT_ID`, and `OPENAI_MODEL` (default `gpt-4o-mini`).
 
@@ -16,7 +16,7 @@ Use the same `VENDORLOCK_MCP_BEARER_TOKEN` value in ArmorIQ's MCP server authent
 
 ArmorIQ requires account-side MCP, agent, and policy registration. This has not been completed or verified for this workspace.
 
-1. Make the API server reachable to ArmorIQ. The MCP endpoint is `https://<published-host>/api/vendorlock/mcp`.
+1. Make sure the API server is reachable to ArmorIQ. The verified public URL is `https://vendor-lock-security-foundation--Yatharthkhanna.replit.app/api/vendorlock/mcp`. This is the direct MCP endpoint, not the VendorLock frontend or a REST data endpoint. Its current `503 MCP_BEARER_MISSING` response means tool discovery is not ready yet.
 2. In ArmorIQ, add an MCP server with the exact ID `vendorlock-mcp`, Streamable HTTP URL above, bearer authentication, and the same bearer secret as `VENDORLOCK_MCP_BEARER_TOKEN`.
 3. Confirm that these four tools are visible in the registry:
    - `get_supplier_record`
@@ -29,6 +29,15 @@ ArmorIQ requires account-side MCP, agent, and policy registration. This has not 
 Until the endpoint secret and registration are present, the web app can display its seeded supplier and invoice, but investigation runs return a setup error and no investigation activity is recorded. Missing registration, network failures, and other SDK errors are never shown as a policy block.
 
 ## Run and verify
+
+Use the real MCP SDK client smoke test to verify bearer authentication, initialization, protocol negotiation, and tool discovery:
+
+```sh
+VENDORLOCK_MCP_URL=https://vendor-lock-security-foundation--Yatharthkhanna.replit.app/api/vendorlock/mcp \
+  pnpm --filter @workspace/api-server run mcp:verify
+```
+
+`VENDORLOCK_MCP_BEARER_TOKEN` must also be available in the shell environment for this command. The test rejects missing/invalid credentials and requires `tools/list` to return exactly the four tools above.
 
 The database schema is applied with:
 
