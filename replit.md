@@ -1,44 +1,60 @@
-# [Project name]
+# VendorLock
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+VendorLock is a supplier-payment security workbench that checks bank-change requests against trusted supplier and invoice records, with tool execution mediated by ArmorIQ.
 
 ## Run & Operate
 
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/vendorlock run dev` — run the VendorLock web app
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Required runtime secrets: `ARMORIQ_API_KEY`, `OPENAI_API_KEY`, and `VENDORLOCK_MCP_BEARER_TOKEN`
+- `DATABASE_URL` is provided by the workspace database. Optional settings: `ARMORIQ_MCP_ID` (defaults to `vendorlock-mcp`), `ARMORIQ_USER_ID`, `ARMORIQ_AGENT_ID`, and `OPENAI_MODEL` (defaults to `gpt-4o-mini`).
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
+- Web: React, Vite, Wouter, TanStack Query
 - API: Express 5
 - DB: PostgreSQL + Drizzle ORM
 - Validation: Zod (`zod/v4`), `drizzle-zod`
 - API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Security/agent: `@armoriq/sdk`, `@modelcontextprotocol/sdk`, OpenAI Node SDK
+- Build: Vite and esbuild
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/vendorlock/src/App.tsx` and `src/index.css` — security workbench and visual theme
+- `artifacts/api-server/src/routes/vendorlock.ts` — readiness, records, investigation, and authenticated Streamable HTTP MCP routes
+- `artifacts/api-server/src/lib/vendorlock-agent.ts` — OpenAI assessment and ArmorIQ plan/token/invoke flow
+- `artifacts/api-server/src/lib/vendorlock-mcp.ts` — the four MCP tools
+- `artifacts/api-server/src/lib/vendorlock-store.ts` — database seed, reads, and tool-backed writes
+- `lib/db/src/schema/vendorlock.ts` — VendorLock database tables
+- `lib/api-spec/openapi.yaml` — API contract source of truth
+- `artifacts/vendorlock/README.md` — required external ArmorIQ setup and test steps
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The MCP HTTP endpoint fails closed unless `VENDORLOCK_MCP_BEARER_TOKEN` is configured; use the same credential in ArmorIQ's MCP registration.
+- Supplier bank updates are available only as the `update_supplier_bank_details` MCP tool. The app never writes bank details directly from the LLM or browser.
+- Investigation activity is persisted only after ArmorIQ has returned a verified allow or a real `PolicyBlockedException`; email bodies are not persisted.
+- The app checks the live ArmorIQ registry for the exact MCP and required tool names before minting an intent token. Registration and policy setup are account-side prerequisites.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+The web app provides an expected-change and adversarial-change investigation flow, shows trusted supplier/invoice records, displays the returned action plan and actual tool outcomes, and lists persisted investigation summaries. Seeded data is synthetic.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+Keep this project scoped to the initial security vertical slice; do not turn it into a large dashboard before the core authorization workflow is verified.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Before using the generated API client, update `lib/api-spec/openapi.yaml` and run `pnpm --filter @workspace/api-spec run codegen`.
+- After changing Drizzle schema, run `pnpm --filter @workspace/db run push` for the development database.
+- ArmorIQ registration was not completed in this workspace. Until its MCP server/agent/policy are registered and the MCP bearer secret is set, no real allow/block test can run; the app reports setup or verification errors rather than simulating outcomes.
 
 ## Pointers
 

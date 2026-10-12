@@ -121,13 +121,11 @@ async function verifyArmorIQRegistration(client: ArmorIQClient): Promise<string>
     );
   }
 
-  const registered = registeredMcps.find(
-    (mcp) => mcp.mcpId === MCP_ID || mcp.name === MCP_ID,
-  );
+  const registered = registeredMcps.find((mcp) => mcp.mcpId === MCP_ID);
   if (!registered) {
     throw new VendorLockSetupError(
       "ARMORIQ_MCP_NOT_REGISTERED",
-      `Register the MCP in ArmorIQ with the exact ID or name "${MCP_ID}" before running the workflow.`,
+      `Register the MCP in ArmorIQ with the exact ID "${MCP_ID}" before running the workflow.`,
     );
   }
 
@@ -488,10 +486,7 @@ export async function runVendorLockInvestigation(input: {
         ),
       );
     } catch (error) {
-      if (
-        input.scenario === "adversarial" &&
-        error instanceof PolicyBlockedException
-      ) {
+      if (error instanceof PolicyBlockedException) {
         enforcement = "blocked";
         decisionReason = error.message;
         toolExecutions.push(
