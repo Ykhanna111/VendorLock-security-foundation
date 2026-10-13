@@ -1,0 +1,79 @@
+Continue building **VendorLock** from the current project state. The MCP server is registered in ArmorIQ. Do not restart the project, rebuild working components unnecessarily, or assume registration means security enforcement is working.
+
+## Objective
+Finish and validate a hackathon-ready supplier payment-fraud prevention workflow using **real ArmorIQ policy enforcement** and the existing `vendorlock-mcp` server.
+
+## 1. Inspect the current implementation
+- Read the existing project structure, README, MCP server, ArmorIQ SDK integration, agent workflow, database schema, and policy configuration.
+- Preserve the working React/Vite frontend, Node.js/TypeScript backend, existing database, and seeded test data.
+- Identify what is implemented, what is incomplete, and what still needs verification.
+- Do not expose, print, or hardcode secrets.
+
+## 2. Verify MCP connectivity
+Use the registered MCP endpoint:
+`https://vendor-lock-security-foundation--Yatharthkhanna.replit.app/api/vendorlock/mcp`
+
+Verify authenticated MCP initialization and tool discovery. Confirm these tools are exposed:
+- `get_supplier_record`
+- `get_invoice`
+- `create_verification_request`
+- `update_supplier_bank_details`
+
+Use the existing verification script if available:
+`pnpm --filter @workspace/api-server run mcp:verify`
+
+Check whether it tests the public endpoint or only localhost. Fix any genuine integration issues and redeploy if needed. Do not claim success unless the tests actually pass.
+
+## 3. Verify real ArmorIQ enforcement
+Inspect the installed ArmorIQ SDK version and official documentation. Follow the supported SDK integration and policy configuration exactly.
+
+Ensure the sensitive `update_supplier_bank_details` operation is executed through the real ArmorIQ-protected agent/tool execution path, with the intended policy evaluated before the mutation happens.
+
+- Do not simulate ArmorIQ decisions.
+- Do not hardcode an “approved” or “blocked” result.
+- Do not create a fake policy audit log and present it as an ArmorIQ event.
+- Do not bypass ArmorIQ by calling the database mutation directly from the agent.
+- If a required dashboard policy or credential must be configured manually, tell me exactly what to do instead of guessing.
+
+## 4. Run two end-to-end security tests
+Use seeded, non-production test data only.
+
+**Test A — Legitimate request**
+1. Process a supplier bank-detail update request.
+2. Retrieve the existing trusted supplier record and relevant invoice.
+3. Follow the configured verification policy.
+4. Allow a bank-detail mutation only if the real policy permits it and all required verification conditions are satisfied.
+
+**Test B — Fraudulent request / prompt injection**
+1. Supply a test email requesting different bank details and instructing the AI to ignore discrepancies.
+2. Attempt the sensitive action through the real agent execution path.
+3. Verify that the configured ArmorIQ policy denies or holds the unauthorized change.
+4. Independently query the database and prove that the original bank details remain unchanged.
+
+If the policy does not block the attack, report the failure and fix the policy or execution path. Never fake a successful denial.
+
+## 5. Make the demo judge-ready
+Ensure the interface clearly presents:
+- Incoming supplier request
+- Trusted supplier and invoice information
+- Detected discrepancies and risk explanation
+- Verification status and recommended next action
+- Actual ArmorIQ decision, when available from the real integration
+- Before/after database state
+- Genuine audit evidence, clearly distinguished from application-generated logs
+
+Use a clean, professional security-product UI. Keep the scope narrow and the workflow reliable rather than adding unrelated features.
+
+## 6. Final verification report
+Run the available build, typecheck, MCP verification, and end-to-end tests. Fix regressions.
+
+Report:
+1. What passed and failed.
+2. Whether the public MCP endpoint works.
+3. Whether all four tools are discoverable.
+4. Whether real ArmorIQ policy enforcement was verified.
+5. The evidence that the fraudulent bank-detail change was prevented.
+6. Any manual dashboard setup or remaining blockers.
+7. Exact steps to reproduce both scenarios in the demo.
+
+**Important:** distinguish implemented, locally tested, publicly tested, and independently verified behavior. Do not claim a test passed unless you executed it and observed the result.
