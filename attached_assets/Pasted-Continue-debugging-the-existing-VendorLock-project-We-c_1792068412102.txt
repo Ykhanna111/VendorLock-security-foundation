@@ -1,0 +1,47 @@
+Continue debugging the existing VendorLock project. We cannot contact ArmorIQ support, so investigate and resolve the proxy-to-MCP invocation failure using local code, official documentation, and reproducible tests.
+
+### Current confirmed facts
+- Installed SDK: `@armoriq/sdk` 0.6.10.
+- Registered MCP name: `VendorLock MCP`.
+- Public endpoint: `https://vendor-lock-security-foundation--Yatharthkhanna.replit.app/api/vendorlock/mcp`.
+- Public MCP initialization, authentication, and `tools/list` pass.
+- The SDK invocation goes to `POST https://proxy.armoriq.ai/invoke`.
+- Protected `get_supplier_record` returns HTTP 400 with JSON-RPC error `-32700: Parse error: Invalid JSON-RPC message`.
+- The MCP deployment logs show a POST to `/api/vendorlock/mcp` returning 400.
+- No actual ArmorIQ enforcement decision has been observed.
+
+### 1. Inspect the MCP server's HTTP transport
+Inspect the server implementation and its request handler in `artifacts/api-server/src/`. Verify that:
+- Initialization and `tools/list` use the same supported Streamable HTTP transport as `tools/call`.
+- POST requests containing valid JSON-RPC 2.0 `tools/call` messages are parsed and dispatched correctly.
+- The handler does not assume every POST is an initialization request.
+- Request body parsing is not performed twice or consumed before the official MCP transport receives it.
+- Required session IDs, protocol-version headers, content types, and transport lifecycle rules are handled according to the installed official MCP SDK.
+- Authenticated tool calls work across separate HTTP requests if the transport requires session management.
+
+### 2. Reproduce the failure without ArmorIQ
+Using the official MCP client and transport, issue a real `tools/call` request for `get_supplier_record` with `supplierId: "SUP-001"` against the local server and then the public endpoint.
+
+Compare the sanitized request shape, headers, status, and response. Do not print bearer tokens or session secrets.
+
+### 3. Compare with the ArmorIQ integration
+Inspect the exact installed SDK types and official documentation for `@armoriq/sdk` 0.6.10. Verify the argument order and expected values for `invoke(mcp, action, intentToken, params)`, including the registered MCP name, action name, intent token, and parameter shape.
+
+Do not guess alternative payload formats or change the SDK call blindly. Identify any specific, evidence-based incompatibility.
+
+### 4. Apply a minimal fix only if justified
+If the MCP transport handler is incorrect, fix it using the official SDK's supported Streamable HTTP transport. Preserve bearer authentication and all four tools.
+
+Do not:
+- bypass ArmorIQ and invoke tools directly as a fallback;
+- fabricate an allow/deny result;
+- weaken authentication or policy checks;
+- invoke the bank-update tool during debugging;
+- claim a proxy-side fix without evidence.
+
+If local and public official-client calls pass but ArmorIQ invocation still fails, report that the remaining failure is upstream or in the proxy-to-server request format, which we cannot independently inspect from the current logs. Do not keep making speculative code changes.
+
+### 5. Validate
+Run the MCP verification script, API-server typecheck, and workspace build. First confirm that a protected read-only supplier lookup succeeds through ArmorIQ before running any security scenario.
+
+Return the precise root cause, files changed, test results, and remaining blockers. Clearly distinguish direct MCP tests from real ArmorIQ-protected invocation and enforcement.
