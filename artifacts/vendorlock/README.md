@@ -14,7 +14,7 @@ Use the same `VENDORLOCK_MCP_BEARER_TOKEN` value in ArmorIQ's MCP server authent
 
 ## ArmorIQ account setup
 
-The public MCP endpoint and the registered ArmorIQ MCP tool schemas have been verified. Agent-level policy behavior still must be confirmed by running both real scenarios; registry visibility alone is not proof that enforcement works.
+The public MCP endpoint and the registered ArmorIQ MCP tool schemas have been verified. The app's two end-to-end scenarios were attempted, but ArmorIQ's proxy currently fails on the first tool invocation; no enforcement result has been verified.
 
 1. The direct MCP endpoint is `https://vendor-lock-security-foundation--Yatharthkhanna.replit.app/api/vendorlock/mcp` (path `/api/vendorlock/mcp`), not the VendorLock frontend or an ordinary REST data route. The public endpoint passed authenticated initialization and `tools/list` using the official MCP SDK client.
 2. ArmorIQ lists this server under the exact name `VendorLock MCP`. The endpoint's MCP server metadata name is separately `vendorlock-mcp`. Use the ArmorIQ registered name as `ARMORIQ_MCP_ID`, configure Streamable HTTP and bearer authentication, and use the same bearer secret as `VENDORLOCK_MCP_BEARER_TOKEN`.
@@ -53,8 +53,15 @@ Start the configured API Server and VendorLock web workflows. After registration
 ## Current verification state
 
 - **Public MCP:** the official MCP SDK client passed bearer checks (missing/invalid both `401`), initialization, protocol negotiation, and `tools/list` at the public HTTPS URL. It discovered all four tools.
+- **Protocol:** HTTP Streamable MCP at `/api/vendorlock/mcp`; the public client negotiated MCP `2025-11-25`. The public HTTPS host remained reachable on the final verification run.
 - **ArmorIQ registry:** the live registry lists `VendorLock MCP`, and `getMcpToolSchemas("VendorLock MCP")` returned the four tool schemas. The generated registry UUID is not the name accepted by this SDK schema lookup.
 - **ArmorIQ invocation:** the SDK successfully issued an intent token for a read plan, but its first `get_supplier_record` invocation returned HTTP `400` with JSON-RPC `-32700: Parse error: Invalid JSON-RPC message`. This is an invocation/protocol error, not a policy block.
-- **Scenarios:** neither end-to-end scenario has produced a verified tool result. The attempted legitimate run stopped at the first protected read, before AI assessment or any write. The development database still has zero investigation and verification-request rows; the seeded supplier bank suffix remains `5678`.
+- **Policy probe:** ArmorIQ issued a token for a plan containing the denied bank-update tool. No invocation was made, so this is not evidence of an allow or a block.
+- **Scenarios:** both app scenarios stopped at the first protected `get_supplier_record` call with the same HTTP `400`, before AI assessment or any write. Neither produced a verified tool result or policy decision. An independent development-database query after both attempts found zero investigation rows, zero verification requests, and the seeded supplier bank suffix still `5678`.
 
-To unblock, open ArmorIQ **MCP Registry → VendorLock MCP**, confirm its URL is exactly the public endpoint above and its auth is Bearer, then use its connection/test control to inspect the failing invocation. ArmorIQ's MCP format requires JSON-RPC 2.0 over HTTP, a `POST` with `Content-Type: application/json`, and SSE-compatible responses. The registry already returns all four schemas and the public endpoint accepts the same workspace bearer, so do not treat this as a missing-tools or policy denial. If the ArmorIQ proxy still returns the parse error, provide ArmorIQ with the failed tool name (`get_supplier_record`), HTTP status (`400`), JSON-RPC code (`-32700`), and the registered server name and endpoint; do not mark either scenario as passed until the proxy call succeeds.
+To unblock:
+
+1. In ArmorIQ, open **MCP Registry → VendorLock MCP**. Confirm the registered URL is exactly `https://vendor-lock-security-foundation--Yatharthkhanna.replit.app/api/vendorlock/mcp` and authentication is Bearer. The live registry currently reports that URL, and its tool-schema lookup returns all four tools.
+2. Use ArmorIQ's connection test to exercise an actual `tools/call` for the read-only `get_supplier_record` tool—not only initialization or tool discovery. Confirm the proxy sends JSON-RPC 2.0 in a `POST` with `Content-Type: application/json` and accepts the server's SSE-compatible response. The current proxy invocation reaches the endpoint but returns JSON-RPC `-32700` (“Parse error: Invalid JSON-RPC message”).
+3. Confirm an active policy is attached to `vendorlock-agent` and this MCP: allow `get_supplier_record`, `get_invoice`, and `create_verification_request`; explicitly deny `update_supplier_bank_details`. Do not treat token issuance as an authorization decision.
+4. If the read-only tool call still fails, give ArmorIQ the registered server name, exact endpoint, tool name, HTTP `400`, and JSON-RPC code `-32700`. Do not run the bank-update scenario again until a protected read call succeeds and the update deny is observed through ArmorIQ.

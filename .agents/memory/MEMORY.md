@@ -1,0 +1,1 @@
+- [ArmorIQ MCP name lookup](armoriq-mcp-name-lookup.md) — use the exact registered MCP name for schema lookup and invocation, not its UUID or protocol metadata name.

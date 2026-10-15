@@ -54,7 +54,7 @@ Keep this project scoped to the initial security vertical slice; do not turn it 
 
 - Before using the generated API client, update `lib/api-spec/openapi.yaml` and run `pnpm --filter @workspace/api-spec run codegen`.
 - After changing Drizzle schema, run `pnpm --filter @workspace/db run push` for the development database.
-- ArmorIQ's registry currently exposes this server under the display name `VendorLock MCP`; its generated registry UUID is not the name accepted by tool-schema lookup. Use the exact registered name for SDK discovery and invocation. The registry and public tool listing pass, but an ArmorIQ proxy invocation currently returns HTTP 400 with a JSON-RPC parse error; do not infer a policy decision from that failure.
+- ArmorIQ's registry currently exposes this server under the display name `VendorLock MCP`; its generated registry UUID is not the name accepted by tool-schema lookup. Use the exact registered name for SDK discovery and invocation. The registry and public tool listing pass, but an ArmorIQ proxy invocation currently returns HTTP 400 with JSON-RPC `-32700` (“Parse error: Invalid JSON-RPC message”). Both app scenarios stop at their first protected read; no policy decision or write has been verified. Do not infer enforcement from the proxy failure.
 
 ## Pointers
 
