@@ -1,0 +1,36 @@
+Continue debugging VendorLock from the current state. Public MCP discovery works, but the first protected `get_supplier_record` call fails with HTTP 400 and JSON-RPC error `-32700: Parse error: Invalid JSON-RPC message`.
+
+Do not rebuild the app or change working MCP discovery code unnecessarily.
+
+### 1. Diagnose the actual request
+- Inspect the installed ArmorIQ SDK version, the current protected invocation code, and the exact request format required by the SDK.
+- Consult the official documentation or package types for this installed version.
+- Capture safe diagnostic details of the outgoing request and incoming response: HTTP method, content type, URL path, JSON-RPC envelope shape, response status, and sanitized response body.
+- Never log authorization headers, bearer tokens, API keys, or other secrets.
+- Determine whether ArmorIQ expects a JSON-RPC `tools/call` request, an SDK-specific invocation envelope, or another documented format.
+- Check whether the code is incorrectly sending an MCP JSON-RPC request directly to an ArmorIQ endpoint, using the wrong endpoint, or wrapping the request incorrectly.
+
+### 2. Fix the root cause
+- Make the smallest code change that conforms to the installed ArmorIQ SDK and its official protocol.
+- Preserve the registered MCP endpoint and all four tools.
+- Ensure `get_supplier_record` is invoked through the actual ArmorIQ-protected path.
+- Do not bypass ArmorIQ, call the protected tool directly as a fallback, fabricate enforcement decisions, or hardcode allow/deny results.
+- If the error originates in ArmorIQ's service or proxy, provide the sanitized request/response evidence and identify the exact dashboard or administrator action required instead of guessing.
+
+### 3. Validate with read-only calls first
+- Run the existing MCP verification script and the relevant typecheck/build tests.
+- Test the public MCP endpoint and protected ArmorIQ invocation separately.
+- Use only the read-only `get_supplier_record` tool with `supplierId: "SUP-001"` for the first protected test.
+- Verify that the request reaches the tool and returns the expected seeded supplier record.
+- Do not invoke `update_supplier_bank_details` or run either fraud scenario until the protected read succeeds.
+
+### 4. Report the result
+Tell me:
+1. The exact root cause of the JSON-RPC parse error.
+2. Which files you changed and why.
+3. Whether the protected read-only call actually succeeded.
+4. Sanitized request/response evidence.
+5. Which checks passed and failed.
+6. Whether any manual ArmorIQ dashboard action remains.
+
+Clearly distinguish a local MCP test from a real ArmorIQ-protected invocation. Do not claim enforcement is working until an actual policy decision has been observed.
