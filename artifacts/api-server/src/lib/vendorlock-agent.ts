@@ -1,5 +1,9 @@
 import OpenAI from "openai";
-import { ArmorIQClient, PolicyBlockedException } from "@armoriq/sdk";
+import {
+  ArmorIQClient,
+  MCPInvocationException,
+  PolicyBlockedException,
+} from "@armoriq/sdk";
 import { z } from "zod";
 import type {
   VendorLockPlanStep,
@@ -11,7 +15,7 @@ import {
   saveInvestigation,
 } from "./vendorlock-store";
 
-const MCP_ID = process.env.ARMORIQ_MCP_ID || "vendorlock-mcp";
+const MCP_NAME = process.env.ARMORIQ_MCP_ID || "VendorLock MCP";
 const MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const TOOL_NAMES = [
   "get_supplier_record",
@@ -96,7 +100,7 @@ function createArmorIQClient() {
     userId: process.env.ARMORIQ_USER_ID || "vendorlock-demo-user",
     agentId: process.env.ARMORIQ_AGENT_ID || "vendorlock-agent",
     mcpCredentials: {
-      [MCP_ID]: {
+      [MCP_NAME]: {
         authType: "bearer",
         token: process.env.VENDORLOCK_MCP_BEARER_TOKEN!,
       },
@@ -121,17 +125,17 @@ async function verifyArmorIQRegistration(client: ArmorIQClient): Promise<string>
     );
   }
 
-  const registered = registeredMcps.find((mcp) => mcp.mcpId === MCP_ID);
+  const registered = registeredMcps.find((mcp) => mcp.name === MCP_NAME);
   if (!registered) {
     throw new VendorLockSetupError(
       "ARMORIQ_MCP_NOT_REGISTERED",
-      `Register the MCP in ArmorIQ with the exact ID "${MCP_ID}" before running the workflow.`,
+      `Register the MCP in ArmorIQ with the exact name "${MCP_NAME}" before running the workflow.`,
     );
   }
 
   let schemas: any[];
   try {
-    schemas = await client.getMcpToolSchemas(registered.mcpId);
+    schemas = await client.getMcpToolSchemas(registered.name);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown ArmorIQ schema error.";
     throw new VendorLockRunError(
@@ -147,7 +151,7 @@ async function verifyArmorIQRegistration(client: ArmorIQClient): Promise<string>
       `The registered MCP is missing required tools: ${missing.join(", ")}.`,
     );
   }
-  return registered.mcpId;
+  return registered.name;
 }
 
 function parseMcpToolResult(raw: unknown): unknown {
@@ -272,14 +276,14 @@ async function assessRequest(input: {
   return assessmentSchema.parse(JSON.parse(response.output_text));
 }
 
-function safePolicy(mcpId: string) {
+function safePolicy(mcpName: string) {
   return {
     allow: [
-      `${mcpId}/get_supplier_record`,
-      `${mcpId}/get_invoice`,
-      `${mcpId}/create_verification_request`,
+      `${mcpName}/get_supplier_record`,
+      `${mcpName}/get_invoice`,
+      `${mcpName}/create_verification_request`,
     ],
-    deny: [`${mcpId}/update_supplier_bank_details`],
+    deny: [`${mcpName}/update_supplier_bank_details`],
   };
 }
 
@@ -310,7 +314,7 @@ function securityTestAction(
       },
       planStep: {
         action: "update_supplier_bank_details",
-        mcp: MCP_ID,
+        mcp: MCP_NAME,
         params: {
           supplierId,
           bankName: "Northstar Test Bank",
@@ -332,7 +336,7 @@ function securityTestAction(
     },
     planStep: {
       action: "create_verification_request",
-      mcp: MCP_ID,
+      mcp: MCP_NAME,
       params: {
         supplierId,
         invoiceId,
@@ -354,22 +358,22 @@ export async function runVendorLockInvestigation(input: {
   const toolExecutions: VendorLockToolExecution[] = [];
 
   try {
-    const mcpId = await verifyArmorIQRegistration(client);
-    const policy = safePolicy(mcpId);
+    const mcpName = await verifyArmorIQRegistration(client);
+    const policy = safePolicy(mcpName);
     const readPlanSteps = [
       {
         action: "get_supplier_record",
-        mcp: mcpId,
+        mcp: mcpName,
         params: { supplierId: input.supplierId },
       },
       {
         action: "get_invoice",
-        mcp: mcpId,
+        mcp: mcpName,
         params: { invoiceId: input.invoiceId },
       },
       {
         action: "get_supplier_record",
-        mcp: mcpId,
+        mcp: mcpName,
         params: { supplierId: input.supplierId },
       },
     ];
@@ -386,7 +390,7 @@ export async function runVendorLockInvestigation(input: {
 
     const supplier = (await invokeVerifiedTool(
       client,
-      mcpId,
+      mcpName,
       "get_supplier_record",
       readToken,
       { supplierId: input.supplierId },
@@ -402,7 +406,7 @@ export async function runVendorLockInvestigation(input: {
 
     const invoice = (await invokeVerifiedTool(
       client,
-      mcpId,
+      mcpName,
       "get_invoice",
       readToken,
       { invoiceId: input.invoiceId },
@@ -430,7 +434,7 @@ export async function runVendorLockInvestigation(input: {
       action.planStep,
       {
         action: "get_supplier_record",
-        mcp: mcpId,
+        mcp: mcpName,
         params: { supplierId: input.supplierId },
       },
     ];
@@ -472,7 +476,7 @@ export async function runVendorLockInvestigation(input: {
       const actionToken = await client.getIntentToken(actionPlan, policy, 300);
       const actionResult = await invokeVerifiedTool(
         client,
-        mcpId,
+        mcpName,
         action.action,
         actionToken,
         action.params,
@@ -504,7 +508,7 @@ export async function runVendorLockInvestigation(input: {
 
     const supplierAfter = (await invokeVerifiedTool(
       client,
-      mcpId,
+      mcpName,
       "get_supplier_record",
       readToken,
       { supplierId: input.supplierId },
@@ -549,6 +553,12 @@ export async function runVendorLockInvestigation(input: {
   } catch (error) {
     if (error instanceof VendorLockSetupError || error instanceof VendorLockRunError) {
       throw error;
+    }
+    if (error instanceof MCPInvocationException) {
+      throw new VendorLockRunError(
+        "ARMORIQ_MCP_INVOKE_FAILED",
+        `ArmorIQ could not invoke ${error.mcp}/${error.action} (HTTP ${error.statusCode ?? "unknown"}). No verified action result was produced.`,
+      );
     }
     if (error instanceof PolicyBlockedException) {
       throw new VendorLockRunError(

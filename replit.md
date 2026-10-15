@@ -11,7 +11,7 @@ VendorLock is a supplier-payment security workbench that checks bank-change requ
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required runtime secrets: `ARMORIQ_API_KEY`, `OPENAI_API_KEY`, and `VENDORLOCK_MCP_BEARER_TOKEN`
-- `DATABASE_URL` is provided by the workspace database. Optional settings: `ARMORIQ_MCP_ID` (defaults to `vendorlock-mcp`), `ARMORIQ_USER_ID`, `ARMORIQ_AGENT_ID`, and `OPENAI_MODEL` (defaults to `gpt-4o-mini`).
+- `DATABASE_URL` is provided by the workspace database. Optional settings: `ARMORIQ_MCP_ID` (exact ArmorIQ registry name; defaults to `VendorLock MCP`), `ARMORIQ_USER_ID`, `ARMORIQ_AGENT_ID`, and `OPENAI_MODEL` (defaults to `gpt-4o-mini`).
 
 ## Stack
 
@@ -40,7 +40,7 @@ VendorLock is a supplier-payment security workbench that checks bank-change requ
 - The MCP HTTP endpoint fails closed unless `VENDORLOCK_MCP_BEARER_TOKEN` is configured; use the same credential in ArmorIQ's MCP registration.
 - Supplier bank updates are available only as the `update_supplier_bank_details` MCP tool. The app never writes bank details directly from the LLM or browser.
 - Investigation activity is persisted only after ArmorIQ has returned a verified allow or a real `PolicyBlockedException`; email bodies are not persisted.
-- The app checks the live ArmorIQ registry for the exact MCP and required tool names before minting an intent token. Registration and policy setup are account-side prerequisites.
+- The app checks the live ArmorIQ registry by the exact registered MCP name and verifies required tool schemas before minting an intent token. Registration and dashboard policy setup are account-side prerequisites.
 
 ## Product
 
@@ -54,7 +54,7 @@ Keep this project scoped to the initial security vertical slice; do not turn it 
 
 - Before using the generated API client, update `lib/api-spec/openapi.yaml` and run `pnpm --filter @workspace/api-spec run codegen`.
 - After changing Drizzle schema, run `pnpm --filter @workspace/db run push` for the development database.
-- ArmorIQ registration was not completed in this workspace. Until its MCP server/agent/policy are registered and the MCP bearer secret is set, no real allow/block test can run; the app reports setup or verification errors rather than simulating outcomes.
+- ArmorIQ's registry currently exposes this server under the display name `VendorLock MCP`; its generated registry UUID is not the name accepted by tool-schema lookup. Use the exact registered name for SDK discovery and invocation. The registry and public tool listing pass, but an ArmorIQ proxy invocation currently returns HTTP 400 with a JSON-RPC parse error; do not infer a policy decision from that failure.
 
 ## Pointers
 

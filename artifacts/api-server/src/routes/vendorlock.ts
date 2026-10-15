@@ -37,7 +37,7 @@ router.get("/vendorlock/status", (_req, res) => {
     openAiConfigured,
     armorIqApiKeyConfigured,
     mcpBearerConfigured,
-    mcpId: process.env.ARMORIQ_MCP_ID || "vendorlock-mcp",
+    mcpId: process.env.ARMORIQ_MCP_ID || "VendorLock MCP",
     registration,
     message,
   });
