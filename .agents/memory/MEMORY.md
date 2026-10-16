@@ -1,1 +1,2 @@
 - [ArmorIQ MCP name lookup](armoriq-mcp-name-lookup.md) — use the exact registered MCP name for schema lookup and invocation, not its UUID or protocol metadata name.
+- [ArmorIQ proxy/MCP wire formats](armoriq-proxy-mcp-wire-format.md) — `/invoke` carries an ArmorIQ envelope; a downstream parse error does not reveal its forwarded JSON-RPC body.

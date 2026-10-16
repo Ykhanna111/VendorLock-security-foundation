@@ -1,0 +1,51 @@
+Continue debugging VendorLock from the current state. The first direct MCP diagnostic timed out because the diagnostic wrapper waited for the streamed initialization response to finish before returning it to the MCP client. That was a test-harness mistake, not evidence of a server failure.
+
+Do not restart the project, repeat already-passing discovery or rebuild steps unnecessarily, or make speculative changes.
+
+### 1. Correct the diagnostic harness
+Use the official MCP client and Streamable HTTP transport from the installed SDK. Do not implement a custom MCP transport unless the official SDK cannot support the required test.
+
+Ensure the diagnostic wrapper handles streaming responses correctly: return the response stream to the client as soon as headers are available, and observe or log response bodies asynchronously without buffering the entire stream first.
+
+Never log bearer credentials, intent tokens, API keys, or session secrets.
+
+### 2. Run read-only MCP tests
+Test the following in order:
+
+**Local endpoint**
+- Initialize an MCP session.
+- Discover tools.
+- Call `get_supplier_record` with `supplierId: "SUP-001"`.
+- Confirm whether the expected seeded supplier record is returned.
+
+**Public endpoint**
+- Repeat the same sequence against `https://vendor-lock-security-foundation--Yatharthkhanna.replit.app/api/vendorlock/mcp`.
+- Use the configured bearer credential without printing it.
+- Record sanitized HTTP statuses, response headers relevant to transport, and error bodies.
+
+Do not call `update_supplier_bank_details` or any other write operation.
+
+### 3. Compare with ArmorIQ
+If local and public direct-client calls pass, test the existing protected ArmorIQ invocation again using the supported `@armoriq/sdk` 0.6.10 interface.
+
+Compare the protected call with the direct MCP results. Check the SDK's documented invocation arguments, MCP registered name, action name, intent token, and parameter shape.
+
+If ArmorIQ still returns HTTP 400 with JSON-RPC error `-32700`, inspect the deployment logs for the corresponding downstream request. Determine whether the server receives a valid JSON-RPC `tools/call` request or whether it receives a malformed or incomplete body.
+
+Do not guess a replacement payload or change working transport code without evidence. If the proxy's outbound request cannot be observed from our side, report that limitation explicitly.
+
+### 4. Make a targeted fix only if the evidence supports it
+If the official MCP client exposes a genuine transport/session bug, fix it using the supported MCP SDK implementation. Preserve authentication, the four registered tools, and the existing application.
+
+Do not bypass ArmorIQ, invoke tools directly as a fallback for protected calls, fabricate policy decisions, or weaken security checks.
+
+### 5. Report actual results
+Provide:
+- Local read-only call result.
+- Public read-only call result.
+- ArmorIQ-protected invocation result.
+- Sanitized HTTP status and error details for any failure.
+- Root cause and exact files changed, if applicable.
+- Whether a real ArmorIQ policy decision was observed.
+
+Clearly distinguish direct MCP success from ArmorIQ-protected success. Do not run the fraud scenarios until the protected read succeeds.
