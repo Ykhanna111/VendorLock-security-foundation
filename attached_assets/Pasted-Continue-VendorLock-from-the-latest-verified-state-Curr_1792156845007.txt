@@ -1,0 +1,27 @@
+Continue VendorLock from the latest verified state.
+
+### Current evidence
+- A single ArmorIQ-protected read-only invocation reached the published MCP endpoint.
+- The proxy sent an initialization request that returned HTTP 200, followed by `tools/call` for `get_supplier_record`.
+- The tool call returned HTTP 400 with JSON-RPC error `-32700: Parse error: Invalid JSON-RPC message`.
+- Sanitized logs showed JSON-RPC version `2.0`, a numeric ID, method `tools/call`, params keys `name` and `arguments`, tool name `get_supplier_record`, and argument key `supplierId`.
+- The `Mcp-Protocol-Version` header was absent, but the installed MCP SDK accepts its absence; do not assume this is the cause.
+- The exact schema violation remains unknown.
+- Temporary diagnostic logging has been removed from `artifacts/api-server/src/routes/vendorlock.ts`. API typecheck, `git diff --check`, and workflow startup passed.
+- The public deployment still needs the cleaned build published.
+
+### Tasks
+
+1. Publish the cleaned build using the existing Publish workflow. Confirm the deployed version no longer contains temporary diagnostic logging.
+
+2. Inspect the exact installed MCP SDK version and the validation code responsible for the `-32700` response. Determine precisely which JSON-RPC schema constraints it enforces, including the allowed top-level keys and ID type.
+
+3. Add a local-only regression test using the official MCP SDK that reproduces the sanitized request structure. Use synthetic values and no credentials. Compare a valid `tools/call` message with controlled variants that alter one field at a time, such as numeric ID type, extra top-level keys, and params structure. Do not infer the root cause from the previous logs alone.
+
+4. If the local test identifies a specific schema violation, make the smallest evidence-based correction to the relevant integration or transport code. Preserve the official MCP SDK transport, authentication, and all four tools. Do not add undocumented protocol hacks or bypass ArmorIQ.
+
+5. After any justified fix, run the local official-client tests and, if necessary, one read-only ArmorIQ-protected `get_supplier_record` test. Do not invoke write tools or run fraud scenarios yet.
+
+6. Report the exact confirmed root cause, test evidence, files changed, publication status, and whether a real ArmorIQ policy decision was observed. If the schema violation cannot be reproduced or isolated, report that honestly instead of making speculative changes.
+
+Do not claim ArmorIQ enforcement is verified merely because the MCP endpoint returns HTTP 200 or because the request parses successfully.
