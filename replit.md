@@ -55,7 +55,7 @@ Keep this project scoped to the initial security vertical slice; do not turn it 
 
 - Before using the generated API client, update `lib/api-spec/openapi.yaml` and run `pnpm --filter @workspace/api-spec run codegen`.
 - After changing Drizzle schema, run `pnpm --filter @workspace/db run push` for the development database.
-- ArmorIQ lists this entry under the exact name `VendorLock MCP`; use that name, not its registry UUID or protocol server name. The local authenticated MCP endpoint initializes and lists all four tools, but the current API key's live ArmorIQ schema lookup returns no tools. The expected-change investigation therefore stops with `ARMORIQ_MCP_TOOLS_MISSING`; no protected call or policy decision has been verified. Re-sync/configure the MCP tools in ArmorIQ before presenting the authorization flow as operational, and do not infer enforcement from this setup failure.
+- Use the exact ArmorIQ registration name (default `VendorLock MCP`), not its registry UUID or protocol server name. The current public MCP endpoint accepts the configured Bearer token, rejects missing/invalid tokens with `401`, and lists all four tools through the official MCP SDK. The current Replit ArmorIQ API key validates but its registry is empty; add/refresh the MCP in that same ArmorIQ account before presenting the authorization flow as operational. Current public URL and setup steps are in `artifacts/vendorlock/README.md`.
 
 ## Pointers
 
