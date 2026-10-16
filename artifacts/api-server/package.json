@@ -8,7 +8,8 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "mcp:verify": "node scripts/verify-vendorlock-mcp.mjs"
+    "mcp:verify": "node scripts/verify-vendorlock-mcp.mjs",
+    "mcp:verify-schema": "node scripts/verify-vendorlock-mcp-schema.mjs"
   },
   "dependencies": {
     "@armoriq/sdk": "^0.6.10",
