@@ -1,0 +1,69 @@
+Continue VendorLock debugging from the verified state. Do not repeat successful direct MCP tests, rebuild the project unnecessarily, or ask me to contact ArmorIQ support.
+
+### Confirmed facts
+- Local and public official MCP client tests pass.
+- Initialization, `tools/list`, and read-only `get_supplier_record` all succeed using protocol version `2025-11-25`.
+- The public endpoint is `https://vendor-lock-security-foundation--Yatharthkhanna.replit.app/api/vendorlock/mcp`.
+- Missing and invalid bearer credentials return 401.
+- ArmorIQ registry lookup and tool-schema lookup work for `VendorLock MCP`.
+- The documented `@armoriq/sdk` 0.6.10 invocation reaches `POST https://proxy.armoriq.ai/invoke` but returns HTTP 400 with JSON-RPC error `-32700: Parse error: Invalid JSON-RPC message`.
+- The deployed MCP server logs a corresponding POST returning 400, but do not expose its request body.
+- No real ArmorIQ allow/deny decision has been observed. No fraud scenario or bank-update tool has been run.
+
+### 1. Inspect the SDK implementation locally
+Read the installed `@armoriq/sdk` 0.6.10 source, type declarations, package metadata, and relevant documentation. Inspect how `invoke()` constructs its envelope, how the intent token and proof are attached, and how the SDK handles proxy responses.
+
+Check whether the package documents:
+- required MCP transport compatibility or protocol versions;
+- any distinction between the registered MCP display name and identifier;
+- exact action/tool naming requirements;
+- a supported way to enable safe request diagnostics;
+- known compatibility requirements or version-specific bugs.
+
+Use the actual installed package, not assumptions about a different version. Do not expose secret values.
+
+### 2. Capture the server-side request shape safely
+Temporarily add narrowly scoped, sanitized diagnostics at the existing MCP HTTP handler. For POST requests, record only:
+- content type;
+- whether the body parses as JSON;
+- top-level JSON-RPC fields such as `jsonrpc`, `id`, and `method`;
+- the names of keys in `params`;
+- whether `params.name` and `params.arguments` exist;
+- the request protocol-version header;
+- whether a body was received.
+
+Never log the full body, supplier banking data, authorization headers, bearer credentials, intent tokens, proof values, or other secrets.
+
+Use the existing read-only `get_supplier_record` invocation to gather evidence. Do not invoke a write tool.
+
+### 3. Compare direct and proxied requests
+Compare the sanitized request shape from:
+1. a successful direct official MCP `tools/call`; and
+2. the failed ArmorIQ-proxied request.
+
+Determine whether the proxied request is missing or altering the JSON-RPC envelope, tool name, arguments, content type, or required transport headers. If the body is empty or malformed, distinguish that observed fact from any speculation about why the proxy sent it.
+
+### 4. Fix only a demonstrated compatibility issue
+If the installed SDK or server implementation reveals a specific, documented incompatibility, make the smallest justified change and test it.
+
+Do not:
+- invent an undocumented ArmorIQ payload;
+- bypass ArmorIQ to execute protected tools;
+- treat token issuance as proof of enforcement;
+- simulate policy decisions;
+- weaken bearer authentication;
+- invoke `update_supplier_bank_details`;
+- claim success without a real observed result.
+
+If the downstream request cannot be observed and no local fix is supported by evidence, stop and report that limitation instead of making speculative changes.
+
+### 5. Report
+Return:
+- the relevant installed SDK behavior;
+- the sanitized proxied request shape, if captured;
+- the comparison with the successful direct request;
+- any confirmed root cause and code changes;
+- whether an actual protected read and policy decision succeeded;
+- remaining blockers.
+
+Keep direct MCP success separate from ArmorIQ-protected invocation and enforcement status.

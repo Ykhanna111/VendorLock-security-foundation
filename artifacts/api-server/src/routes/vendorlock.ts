@@ -21,6 +21,97 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 
 const router: IRouter = Router();
 
+const MCP_RPC_METHODS = new Set([
+  "initialize",
+  "notifications/initialized",
+  "notifications/cancelled",
+  "tools/list",
+  "tools/call",
+]);
+const MCP_TOOL_NAMES = new Set([
+  "get_supplier_record",
+  "get_invoice",
+  "create_verification_request",
+  "update_supplier_bank_details",
+]);
+
+type McpHttpRequest = Parameters<Parameters<IRouter["all"]>[1]>[0];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function diagnosticKeys(value: unknown): string[] {
+  if (!isRecord(value)) return [];
+  return Object.keys(value)
+    .slice(0, 20)
+    .map((key) => key.slice(0, 64));
+}
+
+function logMcpPostShape(req: McpHttpRequest) {
+  const contentType = req.header("content-type") ?? null;
+  const mediaType = contentType?.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+  const parsedBody: unknown = req.body;
+  const bodyRecord = isRecord(parsedBody) ? parsedBody : null;
+  const bodyIsJsonObject =
+    (mediaType === "application/json" || mediaType.endsWith("+json")) &&
+    (bodyRecord !== null || Array.isArray(parsedBody));
+  const contentLength = Number(req.header("content-length"));
+  const bodyReceived =
+    (Number.isFinite(contentLength) && contentLength > 0) ||
+    Boolean(req.header("transfer-encoding")) ||
+    (bodyRecord !== null && Object.keys(bodyRecord).length > 0) ||
+    (Array.isArray(parsedBody) && parsedBody.length > 0);
+
+  const params = bodyRecord && isRecord(bodyRecord.params) ? bodyRecord.params : null;
+  const hasParamsName = params !== null && Object.hasOwn(params, "name");
+  const hasParamsArguments = params !== null && Object.hasOwn(params, "arguments");
+  const rawMethod = bodyRecord?.method;
+  const rawName = params?.name;
+  const jsonrpc = bodyRecord?.jsonrpc;
+
+  logger.info(
+    {
+      scope: "vendorlock.mcp",
+      contentType: contentType?.slice(0, 100) ?? null,
+      bodyReceived,
+      bodyParsesAsJson: bodyIsJsonObject,
+      jsonrpc:
+        jsonrpc === "2.0" ? "2.0" : typeof jsonrpc === "string" ? "[other]" : null,
+      idPresent: bodyRecord !== null && Object.hasOwn(bodyRecord, "id"),
+      idType:
+        bodyRecord === null || !Object.hasOwn(bodyRecord, "id")
+          ? "absent"
+          : bodyRecord.id === null
+            ? "null"
+            : typeof bodyRecord.id,
+      method:
+        typeof rawMethod === "string"
+          ? MCP_RPC_METHODS.has(rawMethod)
+            ? rawMethod
+            : "[other]"
+          : null,
+      paramsKeys: diagnosticKeys(params),
+      paramsNamePresent: hasParamsName,
+      paramsName:
+        typeof rawName === "string"
+          ? MCP_TOOL_NAMES.has(rawName)
+            ? rawName
+            : "[other]"
+          : null,
+      paramsArgumentsPresent: hasParamsArguments,
+      paramsArgumentsType: hasParamsArguments
+        ? Array.isArray(params?.arguments)
+          ? "array"
+          : typeof params?.arguments
+        : "absent",
+      argumentKeys: diagnosticKeys(params?.arguments),
+      protocolVersion: req.header("mcp-protocol-version")?.slice(0, 80) ?? null,
+    },
+    "VendorLock MCP request shape",
+  );
+}
+
 router.get("/vendorlock/status", (_req, res) => {
   const openAiConfigured = Boolean(process.env.OPENAI_API_KEY);
   const armorIqApiKeyConfigured = Boolean(process.env.ARMORIQ_API_KEY);
@@ -166,6 +257,7 @@ function authenticateMcpRequest(
 
 router.all("/vendorlock/mcp", async (req, res) => {
   if (!authenticateMcpRequest(req, res)) return;
+  if (req.method === "POST") logMcpPostShape(req);
 
   const server = createVendorLockMcpServer();
   const transport = new StreamableHTTPServerTransport({
