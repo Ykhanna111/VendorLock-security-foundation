@@ -212,7 +212,35 @@ async function invokeVerifiedTool(
   token: Awaited<ReturnType<ArmorIQClient["getIntentToken"]>>,
   params: Record<string, unknown>,
 ): Promise<unknown> {
-  const result = await client.invoke(mcpId, action, token, params);
+  const planSteps = token.rawToken?.plan?.steps;
+  const stepIndex = Array.isArray(planSteps)
+    ? planSteps.findIndex(
+        (step: unknown) =>
+          step !== null &&
+          typeof step === "object" &&
+          "action" in step &&
+          step.action === action,
+      )
+    : -1;
+  const stepProof = stepIndex >= 0 ? token.stepProofs?.[stepIndex] : undefined;
+  const merkleProof = stepProof?.proof;
+  if (!Array.isArray(merkleProof)) {
+    throw new VendorLockRunError(
+      "ARMORIQ_MERKLE_PROOF_MISSING",
+      `ArmorIQ did not provide an array Merkle proof for ${action}; refusing to invoke the tool.`,
+    );
+  }
+
+  // In @armoriq/sdk 0.6.10, stepProofs contains an envelope with a nested
+  // `proof` array, while invoke() declares merkleProof as an array. Pass the
+  // nested array explicitly instead of the SDK fallback's outer envelope.
+  const result = await client.invoke(
+    mcpId,
+    action,
+    token,
+    params,
+    merkleProof as Array<Record<string, unknown>>,
+  );
   if (!result.verified) {
     throw new VendorLockRunError(
       "ARMORIQ_TOKEN_NOT_VERIFIED",
