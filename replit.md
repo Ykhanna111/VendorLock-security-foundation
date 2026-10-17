@@ -12,7 +12,7 @@ VendorLock is a supplier-payment security workbench that checks bank-change requ
 - For a standalone frontend production build, provide the artifact environment: `PORT=19698 BASE_PATH=/ NODE_ENV=production pnpm --filter @workspace/vendorlock run build`
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - Required runtime secrets: `ARMORIQ_API_KEY`, `OPENAI_API_KEY`, and `VENDORLOCK_MCP_BEARER_TOKEN`
-- `DATABASE_URL` is provided by the workspace database. Optional settings: `ARMORIQ_MCP_ID` (exact ArmorIQ registry name; defaults to `VendorLock MCP`), `ARMORIQ_USER_ID`, `ARMORIQ_AGENT_ID`, and `OPENAI_MODEL` (defaults to `gpt-4o-mini`).
+- `DATABASE_URL` is provided by the workspace database. Optional settings: `ARMORIQ_MCP_ID` (exact ArmorIQ registry name; defaults to `VendorLock-mcp`), `ARMORIQ_USER_ID`, `ARMORIQ_AGENT_ID`, and `OPENAI_MODEL` (defaults to `gpt-4o-mini`).
 
 ## Stack
 
@@ -55,7 +55,7 @@ Keep this project scoped to the initial security vertical slice; do not turn it 
 
 - Before using the generated API client, update `lib/api-spec/openapi.yaml` and run `pnpm --filter @workspace/api-spec run codegen`.
 - After changing Drizzle schema, run `pnpm --filter @workspace/db run push` for the development database.
-- Use the exact ArmorIQ registration name (default `VendorLock MCP`), not its registry UUID or protocol server name. The current public MCP endpoint accepts the configured Bearer token, rejects missing/invalid tokens with `401`, and lists all four tools through the official MCP SDK. The current Replit ArmorIQ API key validates but its registry is empty; add/refresh the MCP in that same ArmorIQ account before presenting the authorization flow as operational. Current public URL and setup steps are in `artifacts/vendorlock/README.md`.
+- Use the exact ArmorIQ registration name (`VendorLock-mcp`), not its registry UUID or protocol server name. The registered public endpoint lists all four tools, but ArmorIQ SDK `invoke()` currently fails with HTTP 400 / JSON-RPC `-32700` (“Parse error: Invalid JSON-RPC message”); this is not an allow or deny result. The published API also fails database lookups with `EAI_AGAIN helium`; do not direct production to the development database or run writes until both issues are resolved. Current findings and setup steps are in `artifacts/vendorlock/README.md`.
 
 ## Pointers
 

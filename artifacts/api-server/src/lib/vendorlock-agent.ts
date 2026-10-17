@@ -15,7 +15,7 @@ import {
   saveInvestigation,
 } from "./vendorlock-store";
 
-const MCP_NAME = process.env.ARMORIQ_MCP_ID || "VendorLock MCP";
+const MCP_NAME = process.env.ARMORIQ_MCP_ID || "VendorLock-mcp";
 const MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const TOOL_NAMES = [
   "get_supplier_record",
