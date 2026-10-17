@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Route, Switch, Link, Router as WouterRouter, useLocation } from 'wouter';
@@ -13,7 +13,7 @@ import {
   useListVerificationRequests, useListInvestigations, useCreateInvestigation,
   getListInvestigationsQueryKey,
 } from '@workspace/api-client-react';
-import type { InvestigationResult, InvestigationSummary, Supplier } from '@workspace/api-client-react';
+import type { InvestigationInput, InvestigationResult, InvestigationSummary, Invoice, Supplier } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -170,11 +170,17 @@ function HomePage() {
   const activityQuery = useListInvestigations();
   const createInvestigation = useCreateInvestigation();
   const queryClient = useQueryClient();
+  const investigationPendingRef = useRef(false);
   const [scenario, setScenario] = useState<'legitimate' | 'adversarial'>('legitimate');
   const [supplierId, setSupplierId] = useState('');
   const [invoiceId, setInvoiceId] = useState('');
   const [requestText, setRequestText] = useState(sampleText.legitimate);
   const [result, setResult] = useState<InvestigationResult | null>(null);
+  const [attemptedInvestigation, setAttemptedInvestigation] = useState<{
+    input: InvestigationInput;
+    supplier: Supplier;
+    invoice: Invoice;
+  } | null>(null);
   const suppliers = suppliersQuery.data || [];
   const invoices = invoicesQuery.data || [];
   const selectedSupplier = suppliers.find((item) => item.id === supplierId) || suppliers[0];
@@ -190,15 +196,28 @@ function HomePage() {
 
   function runInvestigation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedSupplier || !selectedInvoice || requestText.trim().length < 10) return;
-    setResult(null);
+    if (createInvestigation.isPending || !selectedSupplier || !selectedInvoice || requestText.trim().length < 10) return;
+    submitInvestigation(
+      { scenario, requestText: requestText.trim(), supplierId: selectedSupplier.id, invoiceId: selectedInvoice.id },
+      selectedSupplier,
+      selectedInvoice,
+    );
+  }
+
+  function submitInvestigation(input: InvestigationInput, supplier: Supplier, invoice: Invoice) {
+    if (investigationPendingRef.current) return;
+    investigationPendingRef.current = true;
+    setAttemptedInvestigation({ input, supplier, invoice });
     createInvestigation.mutate({
-      data: { scenario, requestText: requestText.trim(), supplierId: selectedSupplier.id, invoiceId: selectedInvoice.id },
+      data: input,
     }, {
       onSuccess: (response) => {
         setResult(response);
         queryClient.invalidateQueries({ queryKey: getListInvestigationsQueryKey() });
         queryClient.invalidateQueries({ queryKey: ['/api/vendorlock/verification-requests'] });
+      },
+      onSettled: () => {
+        investigationPendingRef.current = false;
       },
     });
   }
@@ -263,7 +282,6 @@ function HomePage() {
                   {createInvestigation.isPending ? <><LoaderCircle size={16} className="spin" /> Examining</> : <>Run investigation <ArrowUpRight size={16} /></>}
                 </button>
               </div>
-              {createInvestigation.isError && <div className="mutation-error" role="alert"><CircleAlert size={16} /><div><strong>Investigation request failed</strong><span>{createInvestigation.error instanceof Error ? createInvestigation.error.message : 'The server did not return an investigation. No security outcome is implied.'}</span></div></div>}
             </form>}
           {createInvestigation.isPending && <div className="pending-note"><span className="pending-pulse" /> Waiting for protected investigation response. No decision is recorded yet.</div>}
         </section>
@@ -273,7 +291,16 @@ function HomePage() {
             <div className="panel-index"><span>02</span><span className="index-line" /> EVIDENCE</div>
             <span className="panel-meta"><Fingerprint size={13} /> LIVE RESPONSE</span>
           </div>
-          {result ? <InvestigationResultView result={result} supplier={suppliers.find((item) => item.id === (selectedSupplier?.id))} /> : <EvidencePlaceholder />}
+          {createInvestigation.isError && attemptedInvestigation ? <IncompleteInvestigationView
+            supplier={attemptedInvestigation.supplier}
+            invoice={attemptedInvestigation.invoice}
+            error={createInvestigation.error}
+            onRetry={() => submitInvestigation(attemptedInvestigation.input, attemptedInvestigation.supplier, attemptedInvestigation.invoice)}
+            retrying={createInvestigation.isPending}
+          /> : createInvestigation.isPending && attemptedInvestigation ? <VerificationPendingView
+            supplier={attemptedInvestigation.supplier}
+            invoice={attemptedInvestigation.invoice}
+          /> : result ? <InvestigationResultView result={result} supplier={suppliers.find((item) => item.id === (selectedSupplier?.id))} /> : <EvidencePlaceholder />}
         </section>
       </div>
       <div className="lower-grid">
@@ -299,6 +326,75 @@ function HomePage() {
       </div>
     </PageShell>
   );
+}
+
+function InvestigationRecords({ supplier, invoice }: { supplier: Supplier; invoice: Invoice }) {
+  return <>
+    <div className="incomplete-records-heading">
+      <span className="result-section-label">RETRIEVED FROM VENDORLOCK API</span>
+      <span className="record-source-status"><CircleCheck size={12} /> Data loaded</span>
+    </div>
+    <div className="incomplete-records">
+      <div className="incomplete-record">
+        <span className="result-section-label">SUPPLIER</span>
+        <strong>{supplier.name}</strong>
+        <span>{supplier.trustedContactName} · {supplier.trustedContactEmail}</span>
+        <span>{supplier.bankName} ···· {supplier.bankLast4}</span>
+      </div>
+      <div className="incomplete-record">
+        <span className="result-section-label">INVOICE</span>
+        <strong>{invoice.invoiceNumber} · {money(invoice.amount, invoice.currency)}</strong>
+        <span>Purchase order {invoice.purchaseOrderId}</span>
+        <span>Due {dateLabel(invoice.dueDate)} · {invoice.status}</span>
+      </div>
+    </div>
+  </>;
+}
+
+function VerificationPendingView({ supplier, invoice }: { supplier: Supplier; invoice: Invoice }) {
+  return <div className="incomplete-report" data-testid="investigation-pending">
+    <div className="incomplete-heading">
+      <div className="incomplete-heading-icon"><LoaderCircle size={20} className="spin" /></div>
+      <div><span className="result-overline">INVESTIGATION IN PROGRESS</span><h2>Verification pending</h2></div>
+    </div>
+    <InvestigationRecords supplier={supplier} invoice={invoice} />
+    <div className="unverified-checks">
+      <span className="result-section-label">NOT YET VERIFIED</span>
+      <p>ArmorIQ supplier and invoice checks, and any authorization or policy outcome, are still pending.</p>
+    </div>
+  </div>;
+}
+
+function IncompleteInvestigationView({ supplier, invoice, error, onRetry, retrying }: {
+  supplier: Supplier;
+  invoice: Invoice;
+  error: unknown;
+  onRetry: () => void;
+  retrying: boolean;
+}) {
+  const details = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  return <div className="incomplete-report" data-testid="investigation-incomplete">
+    <div className="incomplete-heading">
+      <div className="incomplete-heading-icon"><CircleAlert size={20} /></div>
+      <div><span className="result-overline">INVESTIGATION STATUS</span><h2>Incomplete — verification pending</h2></div>
+    </div>
+    <div className="integration-warning" role="alert">
+      <TriangleAlert size={16} />
+      <strong>ArmorIQ verification unavailable — supplier verification could not be completed.</strong>
+    </div>
+    <InvestigationRecords supplier={supplier} invoice={invoice} />
+    <div className="unverified-checks">
+      <span className="result-section-label">CHECKS REMAIN UNVERIFIED</span>
+      <p>ArmorIQ supplier and invoice verification, authorization, policy evaluation, and any bank-detail change outcome were not established by this request.</p>
+    </div>
+    <details className="technical-details">
+      <summary>Technical details</summary>
+      <pre>{details}</pre>
+    </details>
+    <button className="run-button retry-verification" type="button" onClick={onRetry} disabled={retrying} data-testid="button-retry-verification">
+      {retrying ? <><LoaderCircle size={15} className="spin" /> Retrying verification</> : <>Retry Verification <RefreshCw size={14} /></>}
+    </button>
+  </div>;
 }
 
 function EvidencePlaceholder() {
